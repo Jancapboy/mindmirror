@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --color-mist: #7ba7bc;
+  --color-mint: #98d8c8;
+  --color-warm-white: #faf9f6;
+  --color-warm-gray: #e8e6e1;
+  --color-mood-happy: #f4d03f;
+  --color-mood-calm: #98d8c8;
+  --color-mood-anxious: #f0b27a;
+  --color-mood-sad: #85c1e9;
+  --color-mood-angry: #ec7063;
+  --color-mood-tired: #b8b5b0;
+  --color-mood-excited: #f39c12;
+  --color-mood-grateful: #e8da5e;
+  
+  --font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  
+  --animate-breathe: breathe 4s ease-in-out infinite;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.5); }
+  }
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-warm-white);
+  color: #333;
+}
