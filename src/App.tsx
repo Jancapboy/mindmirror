@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import { Home, Calendar, ClipboardList, MessageCircle, Dumbbell } from 'lucide-react';
 import TodayPage from './pages/TodayPage';
 import DiaryPage from './pages/DiaryPage';
@@ -7,7 +7,6 @@ import ChatPage from './pages/ChatPage';
 import ToolboxPage from './pages/ToolboxPage';
 
 function BottomNav() {
-  const location = useLocation();
   const navItems = [
     { path: '/', label: '今日', icon: Home },
     { path: '/diary', label: '日记', icon: Calendar },
@@ -20,7 +19,6 @@ function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-warm-gray z-50">
       <div className="flex items-center justify-around py-2 max-w-lg mx-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path;
           return (
             <NavLink
               key={item.path}
