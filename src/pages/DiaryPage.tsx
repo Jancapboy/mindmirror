@@ -453,9 +453,9 @@ export default function DiaryPage() {
       {/* ===== ENTRY FORM MODAL ===== */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+          <div className="bg-white w-full max-w-lg h-[90vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-2xl">
             {/* Form Header */}
-            <div className="sticky top-0 bg-white border-b border-warm-gray px-5 py-4 flex items-center justify-between z-10">
+            <div className="shrink-0 bg-white border-b border-warm-gray px-5 py-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-800">{editingId ? '编辑记录' : '记录情绪'}</h2>
                 <p className="text-xs text-gray-400">{formSteps[formStep].title} · 步骤 {formStep + 1}/{formSteps.length}</p>
@@ -466,14 +466,14 @@ export default function DiaryPage() {
             </div>
 
             {/* Progress */}
-            <div className="px-5 pt-4">
+            <div className="shrink-0 px-5 pt-4 pb-2 bg-white">
               <div className="h-1 bg-warm-gray rounded-full overflow-hidden">
                 <div className="h-full bg-mist rounded-full transition-all" style={{ width: `${((formStep + 1) / formSteps.length) * 100}%` }} />
               </div>
             </div>
 
-            {/* Form Content */}
-            <div className="px-5 py-6">
+            {/* Form Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto px-5 py-6">
               {/* Step 0: Emotions */}
               {formStep === 0 && (
                 <div className="space-y-4">
@@ -503,7 +503,7 @@ export default function DiaryPage() {
                     })}
                   </div>
                   <p className="text-xs text-center text-gray-400">
-                    已选择 {form.emotions.length} 种情绪{form.emotions.length > 0 ? ' · 点击继续选择，或等待自动跳转' : ' · 点击选择'}
+                    已选择 {form.emotions.length} 种情绪{form.emotions.length > 0 ? ' · 可多选' : ' · 点击选择'}
                   </p>
                 </div>
               )}
@@ -688,12 +688,15 @@ export default function DiaryPage() {
                       className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist resize-none"
                     />
                   </div>
+
+                  {/* Bottom spacer for scrolling */}
+                  <div className="h-4" />
                 </div>
               )}
             </div>
 
-            {/* Form Footer */}
-            <div className="sticky bottom-0 bg-white border-t border-warm-gray px-5 py-4 flex items-center justify-between z-10">
+            {/* Form Footer - Fixed */}
+            <div className="shrink-0 bg-white border-t border-warm-gray px-5 py-4 flex items-center justify-between">
               <button
                 onClick={() => setFormStep(Math.max(0, formStep - 1))}
                 disabled={formStep === 0}
@@ -716,7 +719,7 @@ export default function DiaryPage() {
                     className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 flex items-center gap-1"
                   >
                     <SkipForward className="w-4 h-4" />
-                    跳过，直接保存
+                    跳过
                   </button>
                   <button
                     onClick={handleSave}
