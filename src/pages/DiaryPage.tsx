@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Calendar, ChevronLeft, Plus, Trash2, Edit3, X, Heart,
   Zap, MapPin, Users, Activity, Brain, ChevronDown, ChevronUp,
-  BarChart3, Lightbulb, Filter,
+  BarChart3, Lightbulb, Filter, Check,
 } from 'lucide-react';
 import { useEmotionStore, type BaseEmotion } from '../stores/emotionStore';
 import CalendarView from '../components/emotion/CalendarView';
@@ -480,16 +480,26 @@ export default function DiaryPage() {
                         <button
                           key={opt.type}
                           onClick={() => toggleEmotion(opt.type)}
-                          className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
-                            selected ? 'border-mist bg-mist/5' : 'border-transparent bg-warm-white hover:bg-gray-100'
+                          className={`relative flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all active:scale-95 ${
+                            selected
+                              ? 'border-mist bg-mist/20 shadow-sm'
+                              : 'border-transparent bg-warm-white hover:bg-gray-100'
                           }`}
                         >
+                          {selected && (
+                            <span className="absolute -top-1 -right-1 w-5 h-5 bg-mist rounded-full flex items-center justify-center">
+                              <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                            </span>
+                          )}
                           <span className="text-2xl">{opt.emoji}</span>
-                          <span className="text-xs font-medium text-gray-600">{opt.label}</span>
+                          <span className={`text-xs font-medium ${selected ? 'text-mist' : 'text-gray-600'}`}>{opt.label}</span>
                         </button>
                       );
                     })}
                   </div>
+                  <p className="text-xs text-center text-gray-400 mt-3">
+                    已选择 {form.emotions.length} 种情绪{form.emotions.length > 0 ? ' · 可多选' : ' · 点击选择'}
+                  </p>
                 </div>
               )}
 
