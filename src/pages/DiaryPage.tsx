@@ -1,9 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Calendar, ChevronLeft, Plus, Trash2, Edit3, X, Heart,
   Zap, MapPin, Users, Activity, Brain, ChevronDown, ChevronUp,
+  BarChart3, Lightbulb, Filter,
 } from 'lucide-react';
 import { useEmotionStore, type BaseEmotion } from '../stores/emotionStore';
+import CalendarView from '../components/emotion/CalendarView';
+import TrendChart from '../components/emotion/TrendChart';
+import TriggerAnalysis from '../components/emotion/TriggerAnalysis';
+import PatternList from '../components/emotion/PatternList';
+import AIInsight from '../components/emotion/AIInsight';
+import { detectPatterns, identifyTriggers } from '../core/emotion/analyzer';
 
 const EMOTION_OPTIONS: { type: BaseEmotion; label: string; emoji: string; color: string }[] = [
   { type: 'happy', label: '开心', emoji: '😊', color: 'bg-mood-happy/20 text-mood-happy' },
@@ -55,18 +62,40 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function toDateKey(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function DiaryPage() {
   const { entries, loading, loadEntries, addEntry, updateEntry, removeEntry } = useEmotionStore();
-  const [view, setView] = useState<'calendar' | 'list'>('list');
+  const [view, setView] = useState<'list' | 'calendar' | 'stats'>('list');
+  const [emotionFilter, setEmotionFilter] = useState<BaseEmotion | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<EntryForm>(emptyForm());
   const [formStep, setFormStep] = useState(0);
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);
+
+  // Derived data
+  const patterns = useMemo(() => detectPatterns(entries), [entries]);
+  const triggers = useMemo(() => identifyTriggers(entries), [entries]);
+
+  const filteredEntries = useMemo(() => {
+    let result = entries;
+    if (selectedDate) {
+      result = result.filter(e => toDateKey(e.timestamp) === selectedDate);
+    }
+    if (emotionFilter) {
+      result = result.filter(e => e.emotions.some(em => em.type === emotionFilter));
+    }
+    return result;
+  }, [entries, selectedDate, emotionFilter]);
 
   const resetForm = useCallback(() => {
     setForm(emptyForm());
@@ -173,20 +202,31 @@ export default function DiaryPage() {
       <header className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-800">情绪日记</h1>
-          <p className="text-sm text-gray-500 mt-1">记录每一次情绪起伏</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {entries.length > 0 ? `已记录 ${entries.length} 条` : '记录每一次情绪起伏'}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 bg-warm-white rounded-xl p-1">
           <button
-            onClick={() => setView('calendar')}
-            className={`p-2 rounded-lg ${view === 'calendar' ? 'bg-mist/15 text-mist' : 'text-gray-400'}`}
+            onClick={() => { setView('list'); setSelectedDate(null); }}
+            className={`p-2 rounded-lg transition-colors ${view === 'list' ? 'bg-white shadow-sm text-mist' : 'text-gray-400'}`}
+            title="列表"
           >
-            <Calendar className="w-5 h-5" />
+            <ChevronLeft className="w-4 h-4 rotate-90" />
           </button>
           <button
-            onClick={() => setView('list')}
-            className={`p-2 rounded-lg ${view === 'list' ? 'bg-mist/15 text-mist' : 'text-gray-400'}`}
+            onClick={() => { setView('calendar'); setSelectedDate(null); }}
+            className={`p-2 rounded-lg transition-colors ${view === 'calendar' ? 'bg-white shadow-sm text-mist' : 'text-gray-400'}`}
+            title="日历"
           >
-            <ChevronLeft className="w-5 h-5 rotate-90" />
+            <Calendar className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => { setView('stats'); setSelectedDate(null); }}
+            className={`p-2 rounded-lg transition-colors ${view === 'stats' ? 'bg-white shadow-sm text-mist' : 'text-gray-400'}`}
+            title="统计"
+          >
+            <BarChart3 className="w-4 h-4" />
           </button>
         </div>
       </header>
@@ -204,112 +244,208 @@ export default function DiaryPage() {
         <div className="text-center py-8 text-gray-400 text-sm">加载中...</div>
       )}
 
-      {/* Entries List */}
-      {!loading && entries.length === 0 && (
-        <div className="bg-white rounded-2xl border border-warm-gray p-8 text-center">
-          <div className="w-16 h-16 bg-warm-white rounded-full flex items-center justify-center mx-auto mb-4">
-            <Edit3 className="w-7 h-7 text-gray-300" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-700 mb-2">还没有记录</h3>
-          <p className="text-sm text-gray-400 mb-4">开始记录你的情绪，观察内心的变化</p>
-          <p className="text-xs text-gray-300">支持：情绪评分 · 身体感受 · 自动化思维 · CBT五栏表</p>
-        </div>
-      )}
-
-      {!loading && entries.length > 0 && (
-        <div className="space-y-3">
-          {entries.map(entry => (
-            <div key={entry.id} className="bg-white rounded-2xl border border-warm-gray p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{formatDate(entry.timestamp)}</p>
-                  <p className="text-xs text-gray-400">{formatTime(entry.timestamp)} · {entry.context?.activity || '未记录'}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  {entry.emotions[0] && (
-                    <span className="text-2xl">
-                      {EMOTION_OPTIONS.find(e => e.type === entry.emotions[0].type)?.emoji}
-                    </span>
-                  )}
-                  <span className={`text-sm font-medium ${entry.overallMood >= 6 ? 'text-mood-happy' : entry.overallMood >= 4 ? 'text-mood-calm' : 'text-mood-sad'}`}>
-                    {entry.overallMood}/10
-                  </span>
-                </div>
+      {/* ===== LIST VIEW ===== */}
+      {view === 'list' && !loading && (
+        <>
+          {/* Filters */}
+          {entries.length > 0 && (
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-xs text-gray-400">筛选</span>
               </div>
-
-              <div className="flex flex-wrap gap-2 mb-3">
-                {entry.emotions.map(e => {
-                  const opt = EMOTION_OPTIONS.find(o => o.type === e.type);
-                  return (
-                    <span key={e.type} className={`px-2.5 py-1 text-xs rounded-full ${opt?.color || 'bg-gray-100 text-gray-600'}`}>
-                      {opt?.emoji} {opt?.label} · {e.intensity}
-                    </span>
-                  );
-                })}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setEmotionFilter(null)}
+                  className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
+                    emotionFilter === null ? 'bg-mist text-white' : 'bg-warm-white text-gray-500'
+                  }`}
+                >
+                  全部
+                </button>
+                {EMOTION_OPTIONS.map(opt => (
+                  <button
+                    key={opt.type}
+                    onClick={() => setEmotionFilter(emotionFilter === opt.type ? null : opt.type)}
+                    className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
+                      emotionFilter === opt.type ? opt.color : 'bg-warm-white text-gray-500'
+                    }`}
+                  >
+                    {opt.emoji} {opt.label}
+                  </button>
+                ))}
               </div>
-
-              {entry.note && (
-                <p className="text-sm text-gray-600 leading-relaxed mb-3">{entry.note}</p>
+              {selectedDate && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-500">日期: {selectedDate}</span>
+                  <button onClick={() => setSelectedDate(null)} className="text-xs text-mist hover:underline">清除</button>
+                </div>
               )}
+            </div>
+          )}
 
-              <button
-                onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
-                className="text-xs text-mist flex items-center gap-1 mb-2"
-              >
-                {expandedEntry === entry.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                {expandedEntry === entry.id ? '收起详情' : '查看详情'}
-              </button>
+          {filteredEntries.length === 0 && (
+            <div className="bg-white rounded-2xl border border-warm-gray p-8 text-center">
+              <div className="w-16 h-16 bg-warm-white rounded-full flex items-center justify-center mx-auto mb-4">
+                <Edit3 className="w-7 h-7 text-gray-300" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-700 mb-2">
+                {entries.length === 0 ? '还没有记录' : '没有匹配的记录'}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {entries.length === 0 ? '开始记录你的情绪，观察内心的变化' : '试试调整筛选条件'}
+              </p>
+            </div>
+          )}
 
-              {expandedEntry === entry.id && (
-                <div className="mt-3 pt-3 border-t border-warm-gray space-y-3 text-sm">
-                  {entry.context && (entry.context.location || entry.context.people) && (
-                    <div className="flex flex-wrap gap-3 text-gray-500">
-                      {entry.context.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {entry.context.location}</span>}
-                      {entry.context.people && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {entry.context.people}</span>}
+          {filteredEntries.length > 0 && (
+            <div className="space-y-3">
+              {filteredEntries.map(entry => (
+                <div key={entry.id} className="bg-white rounded-2xl border border-warm-gray p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{formatDate(entry.timestamp)}</p>
+                      <p className="text-xs text-gray-400">{formatTime(entry.timestamp)} · {entry.context?.activity || '未记录'}</p>
                     </div>
-                  )}
-                  {entry.physicalSymptoms && entry.physicalSymptoms.length > 0 && (
-                    <div className="flex items-center gap-1 text-gray-500">
-                      <Activity className="w-3 h-3" />
-                      <span>身体感受：{entry.physicalSymptoms.join('、')}</span>
-                    </div>
-                  )}
-                  {entry.thoughts && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-1 text-gray-500"><Brain className="w-3 h-3" /> <span>自动化思维</span></div>
-                      <p className="text-gray-600 bg-warm-white rounded-lg p-3">{entry.thoughts.automaticThought}</p>
-                      {entry.thoughts.cognitiveDistortion && (
-                        <p className="text-xs text-gray-400">认知扭曲：{entry.thoughts.cognitiveDistortion}</p>
+                    <div className="flex items-center gap-1">
+                      {entry.emotions[0] && (
+                        <span className="text-2xl">
+                          {EMOTION_OPTIONS.find(e => e.type === entry.emotions[0].type)?.emoji}
+                        </span>
                       )}
-                      {entry.thoughts.alternativeThought && (
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">替代思维</p>
-                          <p className="text-gray-600 bg-mint/10 rounded-lg p-3">{entry.thoughts.alternativeThought}</p>
+                      <span className={`text-sm font-medium ${entry.overallMood >= 6 ? 'text-mood-happy' : entry.overallMood >= 4 ? 'text-mood-calm' : 'text-mood-sad'}`}>
+                        {entry.overallMood}/10
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {entry.emotions.map(e => {
+                      const opt = EMOTION_OPTIONS.find(o => o.type === e.type);
+                      return (
+                        <span key={e.type} className={`px-2.5 py-1 text-xs rounded-full ${opt?.color || 'bg-gray-100 text-gray-600'}`}>
+                          {opt?.emoji} {opt?.label} · {e.intensity}
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  {entry.note && (
+                    <p className="text-sm text-gray-600 leading-relaxed mb-3">{entry.note}</p>
+                  )}
+
+                  <button
+                    onClick={() => setExpandedEntry(expandedEntry === entry.id ? null : entry.id)}
+                    className="text-xs text-mist flex items-center gap-1 mb-2"
+                  >
+                    {expandedEntry === entry.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    {expandedEntry === entry.id ? '收起详情' : '查看详情'}
+                  </button>
+
+                  {expandedEntry === entry.id && (
+                    <div className="mt-3 pt-3 border-t border-warm-gray space-y-3 text-sm">
+                      {entry.context && (entry.context.location || entry.context.people) && (
+                        <div className="flex flex-wrap gap-3 text-gray-500">
+                          {entry.context.location && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {entry.context.location}</span>}
+                          {entry.context.people && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {entry.context.people}</span>}
                         </div>
                       )}
+                      {entry.physicalSymptoms && entry.physicalSymptoms.length > 0 && (
+                        <div className="flex items-center gap-1 text-gray-500">
+                          <Activity className="w-3 h-3" />
+                          <span>身体感受：{entry.physicalSymptoms.join('、')}</span>
+                        </div>
+                      )}
+                      {entry.thoughts && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1 text-gray-500"><Brain className="w-3 h-3" /> <span>自动化思维</span></div>
+                          <p className="text-gray-600 bg-warm-white rounded-lg p-3">{entry.thoughts.automaticThought}</p>
+                          {entry.thoughts.cognitiveDistortion && (
+                            <p className="text-xs text-gray-400">认知扭曲：{entry.thoughts.cognitiveDistortion}</p>
+                          )}
+                          {entry.thoughts.alternativeThought && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">替代思维</p>
+                              <p className="text-gray-600 bg-mint/10 rounded-lg p-3">{entry.thoughts.alternativeThought}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1 text-gray-500">
+                        <Zap className="w-3 h-3" />
+                        <span>精力水平：{entry.energyLevel}/10</span>
+                      </div>
                     </div>
                   )}
-                  <div className="flex items-center gap-1 text-gray-500">
-                    <Zap className="w-3 h-3" />
-                    <span>精力水平：{entry.energyLevel}/10</span>
+
+                  <div className="flex items-center gap-3 mt-4 pt-3 border-t border-warm-gray">
+                    <button onClick={() => openEditForm(entry.id)} className="text-xs text-gray-400 hover:text-mist flex items-center gap-1">
+                      <Edit3 className="w-3 h-3" /> 编辑
+                    </button>
+                    <button onClick={() => handleDelete(entry.id)} className="text-xs text-gray-400 hover:text-red-400 flex items-center gap-1">
+                      <Trash2 className="w-3 h-3" /> 删除
+                    </button>
                   </div>
                 </div>
-              )}
-
-              <div className="flex items-center gap-3 mt-4 pt-3 border-t border-warm-gray">
-                <button onClick={() => openEditForm(entry.id)} className="text-xs text-gray-400 hover:text-mist flex items-center gap-1">
-                  <Edit3 className="w-3 h-3" /> 编辑
-                </button>
-                <button onClick={() => handleDelete(entry.id)} className="text-xs text-gray-400 hover:text-red-400 flex items-center gap-1">
-                  <Trash2 className="w-3 h-3" /> 删除
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
+        </>
+      )}
+
+      {/* ===== CALENDAR VIEW ===== */}
+      {view === 'calendar' && !loading && (
+        <div className="space-y-4">
+          <CalendarView
+            entries={entries}
+            onSelectDate={(date) => { setSelectedDate(date); setView('list'); }}
+            selectedDate={selectedDate}
+          />
         </div>
       )}
 
-      {/* Entry Form Modal */}
+      {/* ===== STATS VIEW ===== */}
+      {view === 'stats' && !loading && (
+        <div className="space-y-6">
+          {/* AI Insight */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Lightbulb className="w-4 h-4 text-mood-happy" />
+              <h3 className="text-sm font-medium text-gray-700">智能洞察</h3>
+            </div>
+            <AIInsight entries={entries} />
+          </section>
+
+          {/* Trend Chart */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 className="w-4 h-4 text-mist" />
+              <h3 className="text-sm font-medium text-gray-700">趋势分析</h3>
+            </div>
+            <TrendChart entries={entries} />
+          </section>
+
+          {/* Patterns */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Brain className="w-4 h-4 text-mint" />
+              <h3 className="text-sm font-medium text-gray-700">情绪模式</h3>
+            </div>
+            <PatternList patterns={patterns} />
+          </section>
+
+          {/* Triggers */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Activity className="w-4 h-4 text-mood-anxious" />
+              <h3 className="text-sm font-medium text-gray-700">触发因子</h3>
+            </div>
+            <TriggerAnalysis triggers={triggers} />
+          </section>
+        </div>
+      )}
+
+      {/* ===== ENTRY FORM MODAL ===== */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center">
           <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
@@ -503,7 +639,7 @@ export default function DiaryPage() {
                       <option value="否定正面">否定正面</option>
                       <option value="读心术">读心术</option>
                       <option value="预测未来">预测未来</option>
-                      <option value=" catastrophizing">灾难化</option>
+                      <option value="灾难化">灾难化</option>
                       <option value="情绪推理">情绪推理</option>
                       <option value="应该陈述">应该陈述</option>
                       <option value="贴标签">贴标签</option>

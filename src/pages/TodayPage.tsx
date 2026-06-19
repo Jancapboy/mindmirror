@@ -1,17 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Heart, BookOpen, MessageCircle, Dumbbell,
   PenLine, TrendingUp, ClipboardList, Sparkles,
-  Wind, Brain,
+  Wind, Brain, Flame,
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useEmotionStore } from '../stores/emotionStore';
 import { useAssessmentStore } from '../stores/assessmentStore';
-
-function formatDate(ts: number): string {
-  const d = new Date(ts);
-  return `${d.getMonth() + 1}月${d.getDate()}日`;
-}
+import { calculateStreak, aggregateByDay } from '../core/emotion/analyzer';
 
 export default function TodayPage() {
   const navigate = useNavigate();
@@ -19,13 +16,19 @@ export default function TodayPage() {
   const { records, loadRecords } = useAssessmentStore();
 
   useEffect(() => {
-    loadEntries(7);
+    loadEntries(30);
     loadRecords();
   }, [loadEntries, loadRecords]);
 
   const latestEntry = entries[0] || null;
   const recentMood = latestEntry ? latestEntry.overallMood : null;
   const moodColor = recentMood === null ? 'text-gray-400' : recentMood >= 7 ? 'text-mood-happy' : recentMood >= 5 ? 'text-mood-calm' : recentMood >= 3 ? 'text-mood-anxious' : 'text-mood-sad';
+
+  const streak = useMemo(() => calculateStreak(entries), [entries]);
+  const dailyData = useMemo(() => {
+    const data = aggregateByDay(entries);
+    return data.slice(-7).map(d => ({ ...d, displayDate: d.date.slice(5) }));
+  }, [entries]);
 
   const latestPhq9 = records.find(r => r.scaleId === 'phq-9');
   const latestGad7 = records.find(r => r.scaleId === 'gad-7');
@@ -58,9 +61,16 @@ export default function TodayPage() {
             <Heart className="w-5 h-5 text-mist" />
             <span className="font-medium text-gray-800">快速记录</span>
           </div>
-          <span className={`text-sm font-medium ${moodColor}`}>
-            {hasTodayEntry ? '今日已记录' : '今日未记录'}
-          </span>
+          <div className="flex items-center gap-2">
+            {streak > 0 && (
+              <span className="flex items-center gap-1 text-xs font-medium text-orange-500 bg-orange-50 px-2 py-1 rounded-full">
+                <Flame className="w-3 h-3" /> {streak} 天
+              </span>
+            )}
+            <span className={`text-sm font-medium ${moodColor}`}>
+              {hasTodayEntry ? '今日已记录' : '今日未记录'}
+            </span>
+          </div>
         </div>
 
         {hasTodayEntry && latestEntry ? (
@@ -148,25 +158,61 @@ export default function TodayPage() {
         </div>
       )}
 
-      {/* Weekly Trend (simple) */}
-      {entries.length > 1 && (
+      {/* Weekly Trend Chart (Recharts) */}
+      {dailyData.length > 1 && (
+        <div className="bg-white rounded-2xl border border-warm-gray p-5 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-mist" />
+              <span className="font-medium text-gray-800">近7天情绪</span>
+            </div>
+            <button
+              onClick={() => navigate('/diary', { state: { view: 'stats' } })}
+              className="text-xs text-mist hover:underline"
+            >
+              查看详细统计 →
+            </button>
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart data={dailyData}>
+              <defs>
+                <linearGradient id="miniMoodGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#7ba7bc" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#7ba7bc" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="displayDate" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                formatter={(value: unknown) => [`${value as number}/10`, '心情']}
+                contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', fontSize: 12 }}
+              />
+              <Area
+                type="monotone"
+                dataKey="averageMood"
+                stroke="#7ba7bc"
+                strokeWidth={2}
+                fill="url(#miniMoodGradient)"
+                dot={{ r: 3, fill: '#7ba7bc' }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* AI Insight Preview */}
+      {entries.length >= 3 && (
         <div className="bg-white rounded-2xl border border-warm-gray p-5 mb-4">
           <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="w-5 h-5 text-mist" />
-            <span className="font-medium text-gray-800">近7天情绪</span>
+            <Sparkles className="w-5 h-5 text-mood-happy" />
+            <span className="font-medium text-gray-800">智能洞察</span>
           </div>
-          <div className="flex items-end gap-1 h-20">
-            {entries.slice(0, 7).reverse().map((entry) => {
-              const height = Math.max(10, (entry.overallMood / 10) * 100);
-              const color = entry.overallMood >= 7 ? 'bg-mood-happy' : entry.overallMood >= 5 ? 'bg-mood-calm' : entry.overallMood >= 3 ? 'bg-mood-anxious' : 'bg-mood-sad';
-              return (
-                <div key={entry.id} className="flex-1 flex flex-col items-center gap-1">
-                  <div className={`w-full rounded-t ${color} opacity-80`} style={{ height: `${height}%` }} />
-                  <span className="text-[10px] text-gray-400">{formatDate(entry.timestamp).slice(-3)}</span>
-                </div>
-              );
-            })}
-          </div>
+          <p className="text-sm text-gray-600 mb-3">基于你的 {entries.length} 条记录，我们分析出了一些情绪模式。</p>
+          <button
+            onClick={() => navigate('/diary', { state: { view: 'stats' } })}
+            className="text-mist text-sm font-medium hover:underline"
+          >
+            查看完整洞察 →
+          </button>
         </div>
       )}
 

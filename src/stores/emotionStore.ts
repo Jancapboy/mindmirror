@@ -57,7 +57,7 @@ export const useEmotionStore = create<EmotionStore>((set, get) => ({
   loading: false,
   hasTodayEntry: false,
 
-  loadEntries: async (limit = 30) => {
+  loadEntries: async (limit = 100) => {
     set({ loading: true });
     try {
       const dbEntries = await getEmotionEntries(limit);
