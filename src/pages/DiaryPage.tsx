@@ -452,8 +452,8 @@ export default function DiaryPage() {
 
       {/* ===== ENTRY FORM MODAL ===== */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white w-full max-w-lg h-[90vh] sm:h-auto sm:max-h-[90vh] flex flex-col rounded-t-2xl sm:rounded-2xl">
+        <div className="fixed inset-0 bg-black/40 z-[60] flex items-end sm:items-center justify-center pb-16 sm:pb-0">
+          <div className="bg-white w-full max-w-lg h-[85vh] sm:h-auto sm:max-h-[85vh] flex flex-col rounded-t-2xl sm:rounded-2xl">
             {/* Form Header */}
             <div className="shrink-0 bg-white border-b border-warm-gray px-5 py-4 flex items-center justify-between">
               <div>
