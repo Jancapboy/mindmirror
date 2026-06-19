@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Send, Sparkles, Shield, Heart, Brain, Zap, MessageSquare, Loader2, Settings, KeyRound } from 'lucide-react';
 import { chatCompletionStream, initDefaultApiKey, hasApiKey, setApiKey } from '../services/deepseek';
+import { useEmotionStore } from '../stores/emotionStore';
+import { useAssessmentStore } from '../stores/assessmentStore';
 
 initDefaultApiKey('sk-44a82b8778e84fb694205dd8a1002e4a');
 
@@ -17,12 +19,54 @@ const quickActions = [
   { icon: Zap, label: '分析今天的情绪', color: 'text-mood-happy' },
 ];
 
+function formatDate(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function buildDiaryContext(entries: any[]): string {
+  if (entries.length === 0) return '';
+
+  const today = new Date().toDateString();
+  const todayEntries = entries.filter(e => new Date(e.timestamp).toDateString() === today);
+  const recentEntries = entries.slice(0, 7);
+
+  let context = '【用户情绪日记记录】\n';
+
+  if (todayEntries.length > 0) {
+    context += `\n今日记录（${todayEntries.length}条）：\n`;
+    todayEntries.forEach((e, i) => {
+      context += `${i + 1}. ${formatDate(e.timestamp)}\n`;
+      context += `   情绪：${e.emotions.map((em: any) => `${em.type}(强度${em.intensity})`).join('、')}\n`;
+      context += `   整体心情：${e.overallMood}/10，精力：${e.energyLevel}/10\n`;
+      if (e.context?.activity) context += `   活动：${e.context.activity}\n`;
+      if (e.context?.location) context += `   地点：${e.context.location}\n`;
+      if (e.physicalSymptoms?.length) context += `   身体感受：${e.physicalSymptoms.join('、')}\n`;
+      if (e.thoughts?.automaticThought) context += `   自动思维：${e.thoughts.automaticThought}\n`;
+      if (e.note) context += `   笔记：${e.note}\n`;
+    });
+  }
+
+  context += `\n最近7天记录（共${recentEntries.length}条）：\n`;
+  recentEntries.forEach((e, i) => {
+    context += `${i + 1}. ${formatDate(e.timestamp)} - 心情${e.overallMood}/10`;
+    if (e.emotions.length > 0) {
+      context += ` (${e.emotions.map((em: any) => em.type).join('、')})`;
+    }
+    context += '\n';
+  });
+
+  return context;
+}
+
 export default function ChatPage() {
+  const { entries, loadEntries } = useEmotionStore();
+  const { loadRecords } = useAssessmentStore();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: '你好，我是心镜 AI。我受过循证心理学训练，不是来安慰你，而是帮你用心理学工具理解自己。\n\n你可以告诉我：',
+      content: '你好，我是心镜 AI。我受过循证心理学训练，不是来安慰你，而是帮你用心理学工具理解自己。\n\n你可以告诉我：\n• 分析今天的情绪（我会读取你的日记数据）\n• 我很难受，需要支持\n• 教我一个放松技巧',
       timestamp: Date.now(),
     },
   ]);
@@ -35,7 +79,14 @@ export default function ChatPage() {
 
   useEffect(() => {
     setApiKeyReady(hasApiKey());
-  }, []);
+    loadEntries(30);
+    loadRecords();
+  }, [loadEntries, loadRecords]);
+
+  const isDiaryRelated = (text: string): boolean => {
+    const keywords = ['分析今天', '今天情绪', '日记', '情绪记录', '情绪分析', '心情分析', '最近情绪'];
+    return keywords.some(kw => text.includes(kw));
+  };
 
   const handleSubmit = async (e?: React.FormEvent, quickAction?: string) => {
     e?.preventDefault();
@@ -60,13 +111,26 @@ export default function ChatPage() {
     try {
       const systemPrompt = `你是一位受过循证心理学训练的AI心理健康助手。你的知识来源于认知行为疗法(CBT)、正念(MBSR)、接纳承诺疗法(ACT)、辩证行为疗法(DBT)、积极心理学等循证方法。
 
+如果用户提供了【用户情绪日记记录】数据，请基于这些数据进行分析，不要要求用户重复描述。分析时：
+1. 识别情绪模式和趋势
+2. 关联情境、身体感受与情绪变化
+3. 指出可能的认知扭曲
+4. 给出基于循证心理学的具体建议
+
 回答规则：
 1. 基于心理学理论和工具，给出专业、实用的建议
-2. 引用具体的心理学概念或技术（如认知重构、暴露层级、 grounding 等）
+2. 引用具体的心理学概念或技术（如认知重构、暴露层级、grounding 等）
 3. 标注置信度（强证据/中等证据/初步研究）
 4. 明确告知你不是医生，不能替代专业诊断
 5. 如果用户表达自伤或自杀倾向，立即启动危机干预：安抚 + 提供热线资源 + 建议安全计划
 6. 回答风格：温暖、专业、不居高临下，像一位有经验的心理咨询师`;
+
+      const diaryContext = isDiaryRelated(text) ? buildDiaryContext(entries) : '';
+
+      let finalUserContent = text;
+      if (diaryContext) {
+        finalUserContent = `${text}\n\n${diaryContext}`;
+      }
 
       const history = messages
         .filter(m => m.id !== 'welcome')
@@ -75,7 +139,7 @@ export default function ChatPage() {
       const stream = chatCompletionStream([
         { role: 'system', content: systemPrompt },
         ...history,
-        { role: 'user', content: text },
+        { role: 'user', content: finalUserContent },
       ]);
 
       let fullContent = '';
