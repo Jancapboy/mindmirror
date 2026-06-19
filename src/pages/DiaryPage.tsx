@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Calendar, ChevronLeft, Plus, Trash2, Edit3, X, Heart,
   Zap, MapPin, Users, Activity, Brain, ChevronDown, ChevronUp,
-  BarChart3, Lightbulb, Filter, Check,
+  BarChart3, Lightbulb, Filter, Check, SkipForward,
 } from 'lucide-react';
 import { useEmotionStore, type BaseEmotion } from '../stores/emotionStore';
 import CalendarView from '../components/emotion/CalendarView';
@@ -164,11 +164,19 @@ export default function DiaryPage() {
   const toggleEmotion = (type: BaseEmotion) => {
     setForm(prev => {
       const exists = prev.emotions.find(e => e.type === type);
+      let nextEmotions;
       if (exists) {
-        return { ...prev, emotions: prev.emotions.filter(e => e.type !== type) };
+        nextEmotions = prev.emotions.filter(e => e.type !== type);
+      } else {
+        nextEmotions = [...prev.emotions, { type, intensity: 5 }];
       }
-      return { ...prev, emotions: [...prev.emotions, { type, intensity: 5 }] };
+      return { ...prev, emotions: nextEmotions };
     });
+    // 如果是新增选择（不是取消），自动进入下一步
+    const exists = form.emotions.find(e => e.type === type);
+    if (!exists && formStep === 0) {
+      setFormStep(1);
+    }
   };
 
   const setEmotionIntensity = (type: BaseEmotion, intensity: number) => {
@@ -189,11 +197,8 @@ export default function DiaryPage() {
 
   const formSteps = [
     { title: '情绪', desc: '你今天感受到了什么？' },
-    { title: '强度', desc: '这些情绪的强度如何？' },
-    { title: '情境', desc: '当时你在做什么？' },
-    { title: '身体', desc: '有什么身体感受？' },
-    { title: '思维', desc: '脑海里闪过了什么想法？' },
-    { title: '笔记', desc: '还有什么想记录的？' },
+    { title: '强度', desc: '整体状态如何？' },
+    { title: '详情', desc: '补充更多信息（可选）' },
   ];
 
   return (
@@ -450,7 +455,7 @@ export default function DiaryPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center">
           <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
             {/* Form Header */}
-            <div className="sticky top-0 bg-white border-b border-warm-gray px-5 py-4 flex items-center justify-between">
+            <div className="sticky top-0 bg-white border-b border-warm-gray px-5 py-4 flex items-center justify-between z-10">
               <div>
                 <h2 className="text-lg font-semibold text-gray-800">{editingId ? '编辑记录' : '记录情绪'}</h2>
                 <p className="text-xs text-gray-400">{formSteps[formStep].title} · 步骤 {formStep + 1}/{formSteps.length}</p>
@@ -497,8 +502,8 @@ export default function DiaryPage() {
                       );
                     })}
                   </div>
-                  <p className="text-xs text-center text-gray-400 mt-3">
-                    已选择 {form.emotions.length} 种情绪{form.emotions.length > 0 ? ' · 可多选' : ' · 点击选择'}
+                  <p className="text-xs text-center text-gray-400">
+                    已选择 {form.emotions.length} 种情绪{form.emotions.length > 0 ? ' · 点击继续选择，或等待自动跳转' : ' · 点击选择'}
                   </p>
                 </div>
               )}
@@ -565,84 +570,76 @@ export default function DiaryPage() {
                 </div>
               )}
 
-              {/* Step 2: Context */}
+              {/* Step 2: Details (All Optional) */}
               {formStep === 2 && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <p className="text-sm text-gray-500">{formSteps[2].desc}</p>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">地点</label>
+
+                  {/* Context */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-mist" /> 情境
+                    </h4>
                     <input
                       type="text" value={form.context.location}
                       onChange={e => setForm(prev => ({ ...prev, context: { ...prev.context, location: e.target.value } }))}
-                      placeholder="例如：家里、公司、咖啡厅"
+                      placeholder="地点：家里、公司、咖啡厅..."
                       className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist"
                     />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">活动</label>
                     <input
                       type="text" value={form.context.activity}
                       onChange={e => setForm(prev => ({ ...prev, context: { ...prev.context, activity: e.target.value } }))}
-                      placeholder="例如：工作、休息、社交"
+                      placeholder="活动：工作、休息、社交..."
                       className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist"
                     />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">和谁在一起</label>
                     <input
                       type="text" value={form.context.people}
                       onChange={e => setForm(prev => ({ ...prev, context: { ...prev.context, people: e.target.value } }))}
-                      placeholder="例如：独自、同事、家人"
+                      placeholder="和谁：独自、同事、家人..."
                       className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist"
                     />
                   </div>
-                </div>
-              )}
 
-              {/* Step 3: Physical */}
-              {formStep === 3 && (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-500">{formSteps[3].desc}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {PHYSICAL_SYMPTOMS.map(sym => (
-                      <button
-                        key={sym}
-                        onClick={() => togglePhysicalSymptom(sym)}
-                        className={`px-3 py-2 rounded-full text-sm transition-colors ${
-                          form.physicalSymptoms.includes(sym)
-                            ? 'bg-mood-anxious/20 text-mood-anxious border border-mood-anxious/30'
-                            : 'bg-warm-white text-gray-500 border border-warm-gray'
-                        }`}
-                      >
-                        {sym}
-                      </button>
-                    ))}
+                  {/* Physical */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-mood-anxious" /> 身体感受
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {PHYSICAL_SYMPTOMS.map(sym => (
+                        <button
+                          key={sym}
+                          onClick={() => togglePhysicalSymptom(sym)}
+                          className={`px-3 py-2 rounded-full text-sm transition-colors ${
+                            form.physicalSymptoms.includes(sym)
+                              ? 'bg-mood-anxious/20 text-mood-anxious border border-mood-anxious/30'
+                              : 'bg-warm-white text-gray-500 border border-warm-gray'
+                          }`}
+                        >
+                          {sym}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {/* Step 4: Thoughts (CBT) */}
-              {formStep === 4 && (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-500">{formSteps[4].desc}</p>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">自动化思维</label>
+                  {/* Thoughts (CBT) */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Brain className="w-4 h-4 text-mint" /> 思维记录（CBT）
+                    </h4>
                     <textarea
                       value={form.thoughts.automaticThought}
                       onChange={e => setForm(prev => ({ ...prev, thoughts: { ...prev.thoughts, automaticThought: e.target.value } }))}
                       placeholder="当时脑海里闪过了什么想法？"
-                      rows={3}
-                      className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist resize-none"
+                      rows={2}
+                      className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mint resize-none"
                     />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">认知扭曲类型（可选）</label>
                     <select
                       value={form.thoughts.cognitiveDistortion}
                       onChange={e => setForm(prev => ({ ...prev, thoughts: { ...prev.thoughts, cognitiveDistortion: e.target.value } }))}
-                      className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist"
+                      className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mint"
                     >
-                      <option value="">选择类型...</option>
+                      <option value="">认知扭曲类型（可选）...</option>
                       <option value="全或无思维">全或无思维</option>
                       <option value="过度概括">过度概括</option>
                       <option value="心理过滤">心理过滤</option>
@@ -655,57 +652,48 @@ export default function DiaryPage() {
                       <option value="贴标签">贴标签</option>
                       <option value="个人化">个人化</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">支持证据</label>
                     <textarea
                       value={form.thoughts.evidenceFor}
                       onChange={e => setForm(prev => ({ ...prev, thoughts: { ...prev.thoughts, evidenceFor: e.target.value } }))}
-                      placeholder="有什么证据支持这个想法？"
+                      placeholder="支持这个想法的证据（可选）"
                       rows={2}
                       className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist resize-none"
                     />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">反对证据</label>
                     <textarea
                       value={form.thoughts.evidenceAgainst}
                       onChange={e => setForm(prev => ({ ...prev, thoughts: { ...prev.thoughts, evidenceAgainst: e.target.value } }))}
-                      placeholder="有什么证据反对这个想法？"
+                      placeholder="反对这个想法的证据（可选）"
                       rows={2}
                       className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist resize-none"
                     />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">替代思维</label>
                     <textarea
                       value={form.thoughts.alternativeThought}
                       onChange={e => setForm(prev => ({ ...prev, thoughts: { ...prev.thoughts, alternativeThought: e.target.value } }))}
-                      placeholder="一个更平衡的想法是什么？"
+                      placeholder="一个更平衡的想法是什么？（可选）"
                       rows={2}
                       className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mint resize-none"
                     />
                   </div>
-                </div>
-              )}
 
-              {/* Step 5: Note */}
-              {formStep === 5 && (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-500">{formSteps[5].desc}</p>
-                  <textarea
-                    value={form.note}
-                    onChange={e => setForm(prev => ({ ...prev, note: e.target.value }))}
-                    placeholder="写下任何你想记录的内容..."
-                    rows={6}
-                    className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist resize-none"
-                  />
+                  {/* Note */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Edit3 className="w-4 h-4 text-gray-400" /> 笔记
+                    </h4>
+                    <textarea
+                      value={form.note}
+                      onChange={e => setForm(prev => ({ ...prev, note: e.target.value }))}
+                      placeholder="还有什么想记录的..."
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl border border-warm-gray bg-warm-white text-sm focus:outline-none focus:border-mist resize-none"
+                    />
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Form Footer */}
-            <div className="sticky bottom-0 bg-white border-t border-warm-gray px-5 py-4 flex items-center justify-between">
+            <div className="sticky bottom-0 bg-white border-t border-warm-gray px-5 py-4 flex items-center justify-between z-10">
               <button
                 onClick={() => setFormStep(Math.max(0, formStep - 1))}
                 disabled={formStep === 0}
@@ -713,6 +701,7 @@ export default function DiaryPage() {
               >
                 上一步
               </button>
+
               {formStep < formSteps.length - 1 ? (
                 <button
                   onClick={() => setFormStep(formStep + 1)}
@@ -721,12 +710,21 @@ export default function DiaryPage() {
                   下一步
                 </button>
               ) : (
-                <button
-                  onClick={handleSave}
-                  className="px-6 py-2.5 bg-mint text-white text-sm font-medium rounded-xl hover:bg-mint/90"
-                >
-                  {editingId ? '保存修改' : '完成记录'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSave}
+                    className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 flex items-center gap-1"
+                  >
+                    <SkipForward className="w-4 h-4" />
+                    跳过，直接保存
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    className="px-6 py-2.5 bg-mint text-white text-sm font-medium rounded-xl hover:bg-mint/90"
+                  >
+                    保存记录
+                  </button>
+                </div>
               )}
             </div>
           </div>
